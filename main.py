@@ -55,3 +55,9 @@ if __name__ == '__main__':
     print("product: --", monge_elkan_match[0].name)
     print("similarity: --", monge_elkan_match[1])
 
+    print()
+    print("Soft TF-IDF match for --", result.name)
+    soft_tfidf_match = soft_tfidf_matcher(reference_products, result)
+    print("product: --", soft_tfidf_match[0].name)
+    print("similarity: --", soft_tfidf_match[1])
+
