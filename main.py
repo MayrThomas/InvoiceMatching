@@ -1,18 +1,11 @@
 # imports
 from input import *
 from reference import *
-import jellyfish
+from matching import *
 
 x = '{"name": "Avocados 500g", "quantity": null, "unitPrice": null, "totalPrice": {"value": 1.46, "currency": "EUR", ' \
     '"convertedValue": null, "convertedCurrency": null, "convertTime": null}} '
 
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Strg+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     reference_products = prepare_reference_data()
 
@@ -22,31 +15,43 @@ if __name__ == '__main__':
     print()
     print("Jaro-Winkler match for --", result.name)
     print("---------------------------------------------")
-    best_match = -1
-    match_product = ''
+    jaro_winkler_match = jaro_matcher(reference_products, result, True)
 
-    for product in reference_products:
-        match = jellyfish.jaro_winkler_similarity(product.name, result.name)
-
-        if match > best_match:
-            best_match = match
-            match_product = product
-
-    print("product: --", match_product.name)
-    print("value: --", best_match)
+    print("product: --", jaro_winkler_match[0].name)
+    print("similarity: --", jaro_winkler_match[1])
     print()
     print("Levenshtein match for --", result.name)
+    print("---------------------------------------------")
 
-    shortest_distance = float("inf")
+    levenshtein_match = levenshtein_matcher(reference_products, result)
 
-    for product in reference_products:
-        distance = jellyfish.levenshtein_distance(product.name, result.name)
+    print("product: --", levenshtein_match[0].name)
+    print("distance: --", levenshtein_match[1])
+    print()
+    print("Jaro match for --", result.name)
+    print("---------------------------------------------")
 
-        if distance < shortest_distance:
-            shortest_distance = distance
-            match_product = product
+    jaro_match = jaro_matcher(reference_products, result)
 
-    print("product: --", match_product.name)
-    print("distance: --", shortest_distance)
+    print("product: --", jaro_match[0].name)
+    print("similarity: --", jaro_match[1])
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    print()
+    print("TF-IDF cosine match for --", result.name)
+    tfidf_result = tfidf_matcher(reference_products, result)
+    print("product(s): --")
+    [print(x.name) for x in tfidf_result[0]]
+    print("similarity: --", tfidf_result[1])
+
+    print()
+    print("Jaccard match for --", result.name)
+    jaccard_match = jaccard_matcher(reference_products, result)
+    print("product: --", jaccard_match[0].name)
+    print("similarity: --", jaccard_match[1])
+
+    print()
+    print("Monge-Elkan match for --", result.name)
+    monge_elkan_match = monge_elkan_matcher(reference_products, result)
+    print("product: --", monge_elkan_match[0].name)
+    print("similarity: --", monge_elkan_match[1])
+
