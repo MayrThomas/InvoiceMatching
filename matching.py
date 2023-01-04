@@ -289,3 +289,129 @@ def soft_tfidf_matcher(reference_products: list[Product], invoice):
             best_product = reference_products[product_index]
 
     return tuple((best_product, best_similarity))
+
+
+def levenshtein_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the smallest Levenshtein distance for each invoice items
+
+    Parameters
+    ----------
+    :param reference_products: products to match the invoice object against
+    :param invoices: list of invoice items to find a match for
+    :return: list of best matches
+    """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(levenshtein_matcher(reference_products, invoice))
+
+    return matches
+
+
+def jaro_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest Jaro similarity for each invoice items
+
+    Parameters
+    ----------
+    :param reference_products: products to match the invoice object against
+    :param invoices: list of invoice items to find a match for
+    :return: list of best matches
+    """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(jaro_matcher(reference_products, invoice))
+
+    return matches
+
+
+def jaro_winkler_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest Jaro-Winkler similarity for each invoice items
+
+    Parameters
+    ----------
+    :param reference_products: products to match the invoice object against
+    :param invoices: list of invoice items to find a match for
+    :return: list of best matches
+    """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(jaro_matcher(reference_products, invoice, True))
+
+    return matches
+
+
+def jaccard_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest Jaccard similarity for each invoice items
+
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoices: list of invoice items to find a match for
+        :return: list of best matches
+        """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(jaccard_matcher(reference_products, invoice))
+
+    return matches
+
+
+def monge_elkan_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest Monge-Elkan similarity for each invoice items
+
+            Parameters
+            ----------
+            :param reference_products: products to match the invoice object against
+            :param invoices: list of invoice items to find a match for
+            :return: list of best matches
+            """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(monge_elkan_matcher(reference_products, invoice))
+
+    return matches
+
+
+def tfidf_bulk_matcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest tf_idf cosine similarity for each invoice items
+
+            Parameters
+            ----------
+            :param reference_products: products to match the invoice object against
+            :param invoices: list of invoice items to find a match for
+            :return: list of best matches
+            """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(tfidf_matcher(reference_products, invoice))
+
+    return matches
+
+
+def soft_tfidf_bulk_batcher(reference_products: list[Product], invoices: list):
+    """ Finds the product with the highest soft (2-level) TF-IDF similarity for each invoice items
+
+            Parameters
+            ----------
+            :param reference_products: products to match the invoice object against
+            :param invoices: list of invoice items to find a match for
+            :return: list of best matches
+            """
+
+    matches = []
+
+    for invoice in invoices:
+        matches.append(soft_tfidf_matcher(reference_products, invoice))
+
+    return matches
