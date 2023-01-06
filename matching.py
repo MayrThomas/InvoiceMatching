@@ -60,14 +60,14 @@ def __inverse_document_frequency(token_set: list[str], corpus: list[list[str]]):
     inverse_document_freq = []
 
     for token in token_set:
-        idf = math.log((len(corpus)/sum(token in x for x in corpus)))
+        idf = math.log((len(corpus) / sum(token in x for x in corpus)))
         inverse_document_freq.append(idf)
 
     normalized_inverse_document_freq = []
     normalization = math.sqrt(pow(sum(x for x in inverse_document_freq), 2))
 
     for idf in inverse_document_freq:
-        normalized_inverse_document_freq.append(idf/normalization)
+        normalized_inverse_document_freq.append(idf / normalization)
 
     return normalized_inverse_document_freq
 
@@ -80,42 +80,54 @@ def __tf_idf(term_frequency: list[float], inverse_document_frequency):
     return tfidf
 
 
-def levenshtein_matcher(reference_products: list[Product], invoice):
+def __levenshtein_matcher(reference_products: list[Product],
+                          invoice,
+                          threshold: int,
+                          single_best: bool = False):
     """ Calculates the best possible match based on Levenshtein Distance
 
-    Parameters
-    ----------
-    :param reference_products: products to match the invoice object against
-    :param invoice: extracted line of invoice
-    :return: product with the lowest Levenshtein Distance: tuple[Product, int]
-    """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoice: extracted line of invoice
+        :param threshold: maximum possible distance to count as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: products with a low enough Levenshtein Distance
+        """
 
-    shortest_distance = float("inf")
-    match_product = None
+    matches = []
 
     for product in reference_products:
         distance = jellyfish.levenshtein_distance(product.name, invoice.name)
 
-        if distance < shortest_distance:
-            shortest_distance = distance
-            match_product = product
+        if distance <= threshold:
+            matches.append(tuple((product, distance)))
 
-    return tuple((match_product, shortest_distance))
+    if single_best:
+        best = min(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
 
 
-def jaro_matcher(reference_products: list[Product], invoice, use_prefix: bool = False):
+def __jaro_matcher(reference_products: list[Product],
+                   invoice,
+                   threshold: float,
+                   use_prefix=False,
+                   single_best: bool = False):
     """ Calculates the Jaro similarity between the invoice and all products
 
-    Parameters
-    ----------
-    :param reference_products: products to match the invoice object against
-    :param invoice:  extracted line of invoice
-    :param use_prefix: determines whether Jaro or Jaro-Winkler is used; default = False
-    :return:  product with the highest similarity: tuple[Product, float]
-    """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoice:  extracted line of invoice
+        :param threshold: minimum similarity score to be counted as a match
+        :param use_prefix: determines whether Jaro or Jaro-Winkler is used; default = False
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: products with the highest similarity
+        """
 
-    best_match = float("-inf")
-    match_product = Product("", "", "")
+    matches = []
 
     for product in reference_products:
         if use_prefix:
@@ -123,88 +135,71 @@ def jaro_matcher(reference_products: list[Product], invoice, use_prefix: bool = 
         else:
             match = jellyfish.jaro_similarity(product.name, invoice.name)
 
-        if match > best_match:
-            best_match = match
-            match_product = product
+        if match >= threshold:
+            matches.append(tuple((product, match)))
 
-    return tuple((match_product, best_match))
+    if single_best:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
 
-
-def tfidf_matcher(reference_products: list[Product], invoice):
-    """ Finds the most similar product based on TF-IDF and cosine similarity
-
-    Parameters
-    ----------
-    :param reference_products: products to match the invoice object against
-    :param invoice: extracted line of invoice
-    :return: products with the highest similarity: tuple(list[Product], float)
-    """
-
-    documents = [invoice.name]
-    documents.extend([x.name for x in reference_products])
-
-    tfidf_vectorizer = TfidfVectorizer()
-    tfidf_matrix = tfidf_vectorizer.fit_transform(documents)
-    all_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix)
-
-    similarities = all_similarities[0:1, 1::1]
-    max_similarity = numpy.amax(similarities)
-    index = numpy.where(similarities == max_similarity)
-
-    similar_products = [reference_products[x] for x in index[1]]
-
-    return tuple((similar_products, max_similarity))
+    return matches
 
 
-def jaccard_matcher(reference_products: list[Product], invoice):
-    """ Finds the most similar product using Jaccard similarity
+def __jaccard_matcher(reference_products: list[Product],
+                      invoice,
+                      threshold: float,
+                      single_best: bool = False):
+    """ Calculates the Jaccard similarity and finds all potential matches considering the threshold.
 
     Parameters
     ----------
     :param reference_products: products to match the invoice object against
     :param invoice: extracted line of invoice
-    :return: product with the highest similarity: tuple(Product, float)
+    :param threshold: minimum similarity score to be counted as a match
+    :param single_best: determines whether only the best match is returned; default = False
+    :return: products with the highest similarity
     """
+    matches = []
 
     # tokenize all strings
     invoice_tokens = invoice.name.split()
     product_tokens = [x.name.split() for x in reference_products]
-
-    max_similarity = float("-inf")
-    match_product = None
 
     for index, product in enumerate(product_tokens):
         intersection = len(set(invoice_tokens).intersection(product))
         union = len(set(invoice_tokens).union(product))
         jaccard_similarity = float(intersection) / union
 
-        if jaccard_similarity > max_similarity:
-            max_similarity = jaccard_similarity
-            match_product = reference_products[index]
+        if jaccard_similarity >= threshold:
+            matches.append(tuple((reference_products[index], jaccard_similarity)))
 
-    return tuple((match_product, max_similarity))
+    if single_best:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
 
 
-def monge_elkan_matcher(reference_products: list[Product], invoice):
-    """ Finds the most similar product using Monge-Elkan strategy
-
-        Monge-Elkan is a hybrid similarity metric that utilizes tokens and calculates the similarity of two strings
-        using the similarity of the individual tokens.
+def __monge_elkan_matcher(reference_products: list[Product],
+                          invoice,
+                          threshold: float,
+                          single_best: bool = False):
+    """ Calculates the similarity as proposed by Monge and Elkan. Finds all the matching products considering the
+    threshold.
 
     Parameters
-    ----------
+    -----------
     :param reference_products: products to match the invoice object against
     :param invoice: extracted line of invoice
-    :return: product with the highest similarity: tuple(Product, float)
+    :param threshold: minimum similarity score to be counted as a match
+    :param single_best: determines whether only the best match is returned; default = False
+    :return: products with the highest similarity
     """
-
+    matches = []
     # tokenize strings
     invoice_tokens = invoice.name.split()
     num_invoice_tokens = len(invoice_tokens)
     product_tokens = [x.name.split() for x in reference_products]
-
-    max_similarity = float("-inf")
-    match_product = None
 
     for index, product in enumerate(product_tokens):
         sum_token_similarity = 0.0
@@ -214,23 +209,67 @@ def monge_elkan_matcher(reference_products: list[Product], invoice):
 
         monge_elkan = (1 / num_invoice_tokens) * sum_token_similarity
 
-        if monge_elkan > max_similarity:
-            max_similarity = monge_elkan
-            match_product = reference_products[index]
+        if monge_elkan >= threshold:
+            matches.append(tuple((reference_products[index], monge_elkan)))
 
-    return tuple((match_product, max_similarity))
+    if single_best:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
 
 
-def soft_tfidf_matcher(reference_products: list[Product], invoice):
+def __tfidf_cosine_matcher(reference_products: list[Product],
+                           invoice,
+                           threshold: float,
+                           single_best: bool = False):
+    """ Finds the most similar product based on TF-IDF and cosine similarity
+
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoice: extracted line of invoice
+        :param threshold: minimum similarity to be counted as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: products with the highest similarity
+        """
+    matches = []
+
+    tokens = [invoice.name]
+    tokens.extend([x.name for x in reference_products])
+
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform(tokens)
+    all_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix)
+
+    similarities = all_similarities[0:1, 1::1]
+    index = numpy.where(similarities >= threshold)
+
+    [matches.append(tuple((reference_products[x], similarities[x]))) for x in index[1]]
+
+    if single_best:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
+
+
+def __soft_tfidf_matcher(reference_products: list[Product],
+                         invoice,
+                         threshold: float,
+                         single_best: bool = False):
     """ Finds the most similar match based on a version of TF-IDF that not only considers exact matches.
-        Jaro-Winkler is used as an additional similarity metric for token selection
+            Jaro-Winkler is used as an additional similarity metric for token selection
 
-    Parameters
-    ----------
-    :param reference_products: products to match the invoice object against
-    :param invoice: extracted line of invoice
-    :return: product with the highest similarity: tuple(Product, float)
-    """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoice: extracted line of invoice
+        :param threshold: minimum similarity to be counted as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: product(s) with the highest similarity
+        """
+    matches = []
 
     # tokenize strings
     invoice_tokens = invoice.name.split()
@@ -284,134 +323,174 @@ def soft_tfidf_matcher(reference_products: list[Product], invoice):
         for idx in range(len(invoice_tfidf)):
             tmp_similarity += invoice_tfidf[idx] * product_tfidf[idx] * jaro_winkler_similarities[idx]
 
-        if tmp_similarity > best_similarity:
-            best_similarity = tmp_similarity
-            best_product = reference_products[product_index]
+        if tmp_similarity >= threshold:
+            matches.append(tuple((reference_products[product_index], tmp_similarity)))
 
-    return tuple((best_product, best_similarity))
+    if single_best:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
 
 
-def levenshtein_bulk_matcher(reference_products: list[Product], invoices: list):
+def levenshtein_bulk_matcher(reference_products: list[Product],
+                             invoices: list,
+                             threshold: int,
+                             single_best: bool = False):
     """ Finds the product with the smallest Levenshtein distance for each invoice items
 
     Parameters
     ----------
     :param reference_products: products to match the invoice object against
     :param invoices: list of invoice items to find a match for
+    :param threshold: maximum distance to count as a match
+    :param single_best: determines whether only the best match is returned; default = False
     :return: list of best matches
     """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(levenshtein_matcher(reference_products, invoice))
+        matches.append(tuple((invoice, __levenshtein_matcher(reference_products, invoice, threshold, single_best))))
 
     return matches
 
 
-def jaro_bulk_matcher(reference_products: list[Product], invoices: list):
+def jaro_bulk_matcher(reference_products: list[Product],
+                      invoices: list,
+                      threshold: float,
+                      single_best: bool = False):
     """ Finds the product with the highest Jaro similarity for each invoice items
 
     Parameters
     ----------
     :param reference_products: products to match the invoice object against
     :param invoices: list of invoice items to find a match for
+    :param threshold: minimum similarity to count as a match
+    :param single_best: determines whether only the best match is returned; default = False
     :return: list of best matches
     """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(jaro_matcher(reference_products, invoice))
+        matches.append(tuple((invoice,
+                              __jaro_matcher(reference_products, invoice, threshold, single_best=single_best))))
 
     return matches
 
 
-def jaro_winkler_bulk_matcher(reference_products: list[Product], invoices: list):
+def jaro_winkler_bulk_matcher(
+        reference_products: list[Product],
+        invoices: list,
+        threshold: float,
+        single_best: bool = False):
     """ Finds the product with the highest Jaro-Winkler similarity for each invoice items
 
     Parameters
     ----------
     :param reference_products: products to match the invoice object against
     :param invoices: list of invoice items to find a match for
+    :param threshold: minimum similarity to count as a match
+    :param single_best: determines whether only the best match is returned; default = False
     :return: list of best matches
     """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(jaro_matcher(reference_products, invoice, True))
+        matches.append(tuple((invoice, __jaro_matcher(reference_products, invoice, threshold, True, single_best))))
 
     return matches
 
 
-def jaccard_bulk_matcher(reference_products: list[Product], invoices: list):
+def jaccard_bulk_matcher(reference_products: list[Product],
+                         invoices: list,
+                         threshold: float,
+                         single_best: bool = False):
     """ Finds the product with the highest Jaccard similarity for each invoice items
 
         Parameters
         ----------
         :param reference_products: products to match the invoice object against
         :param invoices: list of invoice items to find a match for
+        :param threshold: minimum similarity to count as a match
+        :param single_best: determines whether only the best match is returned; default = False
         :return: list of best matches
         """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(jaccard_matcher(reference_products, invoice))
+        matches.append(__jaccard_matcher(reference_products, invoice, threshold, single_best))
 
     return matches
 
 
-def monge_elkan_bulk_matcher(reference_products: list[Product], invoices: list):
+def monge_elkan_bulk_matcher(reference_products: list[Product],
+                             invoices: list,
+                             threshold: float,
+                             single_best: bool = False):
     """ Finds the product with the highest Monge-Elkan similarity for each invoice items
 
-            Parameters
-            ----------
-            :param reference_products: products to match the invoice object against
-            :param invoices: list of invoice items to find a match for
-            :return: list of best matches
-            """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoices: list of invoice items to find a match for
+        :param threshold: minimum similarity to count as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: list of best matches
+         """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(monge_elkan_matcher(reference_products, invoice))
+        matches.append(__monge_elkan_matcher(reference_products, invoice, threshold, single_best))
 
     return matches
 
 
-def tfidf_bulk_matcher(reference_products: list[Product], invoices: list):
+def tfidf_bulk_matcher(reference_products: list[Product],
+                       invoices: list,
+                       threshold: float,
+                       single_best: bool = False):
     """ Finds the product with the highest tf_idf cosine similarity for each invoice items
 
-            Parameters
-            ----------
-            :param reference_products: products to match the invoice object against
-            :param invoices: list of invoice items to find a match for
-            :return: list of best matches
-            """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoices: list of invoice items to find a match for
+        :param threshold: minimum similarity to count as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: list of best matches
+        """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(tfidf_matcher(reference_products, invoice))
+        matches.append(__tfidf_cosine_matcher(reference_products, invoice, threshold, single_best))
 
     return matches
 
 
-def soft_tfidf_bulk_batcher(reference_products: list[Product], invoices: list):
+def soft_tfidf_bulk_matcher(reference_products: list[Product],
+                            invoices: list,
+                            threshold: float,
+                            single_best: bool = False):
     """ Finds the product with the highest soft (2-level) TF-IDF similarity for each invoice items
 
-            Parameters
-            ----------
-            :param reference_products: products to match the invoice object against
-            :param invoices: list of invoice items to find a match for
-            :return: list of best matches
-            """
+        Parameters
+        ----------
+        :param reference_products: products to match the invoice object against
+        :param invoices: list of invoice items to find a match for
+        :param threshold: minimum similarity to count as a match
+        :param single_best: determines whether only the best match is returned; default = False
+        :return: list of best matches
+        """
 
     matches = []
 
     for invoice in invoices:
-        matches.append(soft_tfidf_matcher(reference_products, invoice))
+        matches.append(__soft_tfidf_matcher(reference_products, invoice, threshold, single_best))
 
     return matches
