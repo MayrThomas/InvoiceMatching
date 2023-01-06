@@ -103,7 +103,7 @@ def __levenshtein_matcher(reference_products: list[Product],
         if distance <= threshold:
             matches.append(tuple((product, distance)))
 
-    if single_best:
+    if single_best and len(matches):
         best = min(matches, key=lambda item: item[1])
         return [best]
 
@@ -138,7 +138,7 @@ def __jaro_matcher(reference_products: list[Product],
         if match >= threshold:
             matches.append(tuple((product, match)))
 
-    if single_best:
+    if single_best and len(matches):
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -173,7 +173,7 @@ def __jaccard_matcher(reference_products: list[Product],
         if jaccard_similarity >= threshold:
             matches.append(tuple((reference_products[index], jaccard_similarity)))
 
-    if single_best:
+    if single_best and len(matches):
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -212,7 +212,7 @@ def __monge_elkan_matcher(reference_products: list[Product],
         if monge_elkan >= threshold:
             matches.append(tuple((reference_products[index], monge_elkan)))
 
-    if single_best:
+    if single_best and len(matches):
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -244,10 +244,11 @@ def __tfidf_cosine_matcher(reference_products: list[Product],
 
     similarities = all_similarities[0:1, 1::1]
     index = numpy.where(similarities >= threshold)
+    sim_list = similarities.tolist()
 
-    [matches.append(tuple((reference_products[x], similarities[x]))) for x in index[1]]
+    [matches.append(tuple((reference_products[x], sim_list[0][x]))) for x in index[1]]
 
-    if single_best:
+    if single_best and len(matches):
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -274,16 +275,13 @@ def __soft_tfidf_matcher(reference_products: list[Product],
     # tokenize strings
     invoice_tokens = invoice.name.split()
     product_tokens = [x.name.split() for x in reference_products]
-    corpus = product_tokens
-    corpus.append(invoice_tokens)
+    corpus = product_tokens.copy()
+    corpus.append(invoice_tokens.copy())
 
     # tf = number of times a token appears in the document/string
     # idf = weight of words across the whole corpus  (log(number of documents / number of documents containing token)
     # tf-idf = tf * idf
     # similarity = (tfidf * tfidf * similarity) + (...)
-
-    best_similarity = 0.0
-    best_product = None
 
     for product_index, product in enumerate(product_tokens):
         invoice_similarity_tokens = []
@@ -326,7 +324,7 @@ def __soft_tfidf_matcher(reference_products: list[Product],
         if tmp_similarity >= threshold:
             matches.append(tuple((reference_products[product_index], tmp_similarity)))
 
-    if single_best:
+    if single_best and len(matches):
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -374,8 +372,10 @@ def jaro_bulk_matcher(reference_products: list[Product],
     matches = []
 
     for invoice in invoices:
-        matches.append(tuple((invoice,
-                              __jaro_matcher(reference_products, invoice, threshold, single_best=single_best))))
+        matches.append(tuple((
+            invoice,
+            __jaro_matcher(reference_products, invoice, threshold, single_best=single_best)
+        )))
 
     return matches
 
@@ -399,7 +399,10 @@ def jaro_winkler_bulk_matcher(
     matches = []
 
     for invoice in invoices:
-        matches.append(tuple((invoice, __jaro_matcher(reference_products, invoice, threshold, True, single_best))))
+        matches.append(tuple((
+            invoice,
+            __jaro_matcher(reference_products, invoice, threshold, True, single_best)
+        )))
 
     return matches
 
@@ -422,7 +425,10 @@ def jaccard_bulk_matcher(reference_products: list[Product],
     matches = []
 
     for invoice in invoices:
-        matches.append(__jaccard_matcher(reference_products, invoice, threshold, single_best))
+        matches.append(tuple((
+            invoice,
+            __jaccard_matcher(reference_products, invoice, threshold, single_best)
+        )))
 
     return matches
 
@@ -445,7 +451,10 @@ def monge_elkan_bulk_matcher(reference_products: list[Product],
     matches = []
 
     for invoice in invoices:
-        matches.append(__monge_elkan_matcher(reference_products, invoice, threshold, single_best))
+        matches.append(tuple((
+            invoice,
+            __monge_elkan_matcher(reference_products, invoice, threshold, single_best)
+        )))
 
     return matches
 
@@ -468,7 +477,10 @@ def tfidf_bulk_matcher(reference_products: list[Product],
     matches = []
 
     for invoice in invoices:
-        matches.append(__tfidf_cosine_matcher(reference_products, invoice, threshold, single_best))
+        matches.append(tuple((
+            invoice,
+            __tfidf_cosine_matcher(reference_products, invoice, threshold, single_best)
+        )))
 
     return matches
 
@@ -491,6 +503,9 @@ def soft_tfidf_bulk_matcher(reference_products: list[Product],
     matches = []
 
     for invoice in invoices:
-        matches.append(__soft_tfidf_matcher(reference_products, invoice, threshold, single_best))
+        matches.append(tuple((
+            invoice,
+            __soft_tfidf_matcher(reference_products, invoice, threshold, single_best)
+        )))
 
     return matches

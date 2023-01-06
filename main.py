@@ -35,29 +35,29 @@ if __name__ == '__main__':
     invoices = read_invoices(open_invoice_file())
     test_invoices = invoices[1:10]
 
-    jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, test_invoices, 0.7, True)
+    jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, test_invoices, 0.7, False)
     __print_matches(jaro_winkler_match, Metric.JARO_WINKLER)
     print()
 
-    levenshtein_match = levenshtein_bulk_matcher(reference_products, test_invoices, 10, True)
+    levenshtein_match = levenshtein_bulk_matcher(reference_products, test_invoices, 10, False)
     __print_matches(levenshtein_match, Metric.LEVENSHTEIN)
     print()
 
-    jaro_match = jaro_bulk_matcher(reference_products, test_invoices, 0.7, True)
+    jaro_match = jaro_bulk_matcher(reference_products, test_invoices, 0.7, False)
     __print_matches(jaro_match, Metric.JARO)
     print()
 
-    tfidf_result = tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
+    tfidf_result = tfidf_bulk_matcher(reference_products, test_invoices, 0.4, False)
     __print_matches(tfidf_result, Metric.TFIDF)
     print()
 
-    jaccard_match = jaccard_bulk_matcher(reference_products, test_invoices, 0.7, True)
+    jaccard_match = jaccard_bulk_matcher(reference_products, test_invoices, 0.7, False)
     __print_matches(jaccard_match, Metric.JACCARD)
     print()
 
-    monge_elkan_match = monge_elkan_bulk_matcher(reference_products, test_invoices, 0.7, True)
+    monge_elkan_match = monge_elkan_bulk_matcher(reference_products, test_invoices, 0.7, False)
     __print_matches(monge_elkan_match, Metric.MONGE_ELKAN)
     print()
 
-    soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
+    soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, test_invoices, 0.4, False)
     __print_matches(soft_tfidf_match, Metric.SOFT_TFIDF)
