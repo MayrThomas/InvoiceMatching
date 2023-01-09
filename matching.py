@@ -3,8 +3,18 @@ import numpy
 from product import Product
 import jellyfish
 import math
+import tensorflow as tf
+from keras.preprocessing.text import Tokenizer, tokenizer_from_json
+from keras.models import Model
+from keras.utils import pad_sequences
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy
+
+MAX_SEQUENCE_LENGTH = 10
+tokenizer_config = open("tokenizer.json", "r").read()
+lstm_model = Model()
+tokenizer = tokenizer_from_json(tokenizer_config)
 
 
 def __monge_elkan_token_similarity(invoice_token: str, product_tokens: list[str]):
@@ -103,7 +113,7 @@ def __levenshtein_matcher(reference_products: list[Product],
         if distance <= threshold:
             matches.append(tuple((product, distance)))
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = min(matches, key=lambda item: item[1])
         return [best]
 
@@ -138,7 +148,7 @@ def __jaro_matcher(reference_products: list[Product],
         if match >= threshold:
             matches.append(tuple((product, match)))
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -173,7 +183,7 @@ def __jaccard_matcher(reference_products: list[Product],
         if jaccard_similarity >= threshold:
             matches.append(tuple((reference_products[index], jaccard_similarity)))
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -212,7 +222,7 @@ def __monge_elkan_matcher(reference_products: list[Product],
         if monge_elkan >= threshold:
             matches.append(tuple((reference_products[index], monge_elkan)))
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -248,7 +258,7 @@ def __tfidf_cosine_matcher(reference_products: list[Product],
 
     [matches.append(tuple((reference_products[x], sim_list[0][x]))) for x in index[1]]
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = max(matches, key=lambda item: item[1])
         return [best]
 
@@ -324,11 +334,46 @@ def __soft_tfidf_matcher(reference_products: list[Product],
         if tmp_similarity >= threshold:
             matches.append(tuple((reference_products[product_index], tmp_similarity)))
 
-    if single_best and len(matches):
+    if single_best and len(matches) > 0:
         best = max(matches, key=lambda item: item[1])
         return [best]
 
     return matches
+
+
+def __lstm_matcher(reference_products: list[Product],
+                   invoice,
+                   threshold: float,
+                   single_best: bool = False):
+
+    invoice_sequence = tokenizer.texts_to_sequences([invoice.name])
+    invoice_sequence = pad_sequences(invoice_sequence, maxlen=MAX_SEQUENCE_LENGTH)
+
+    product_names = [product.name for product in reference_products]
+    product_sequences = tokenizer.texts_to_sequences(product_names)
+    product_sequences = pad_sequences(product_sequences, maxlen=MAX_SEQUENCE_LENGTH)
+
+    # expand list to exact size of reference products
+    invoice_sequence = invoice_sequence[:len(product_sequences)] \
+        + [invoice_sequence[0]] * (len(product_sequences)+1 - len(invoice_sequence))
+
+    predictions = list(lstm_model.predict([invoice_sequence, product_sequences]).ravel())
+
+    threshold_predictions = [tuple((it, pred)) for it, pred in enumerate(predictions) if pred >= threshold]
+
+    matches = [tuple((reference_products[tpred[0]], tpred[1])) for tpred in threshold_predictions]
+
+    if single_best and len(matches) > 0:
+        best = max(matches, key=lambda item: item[1])
+        return [best]
+
+    return matches
+
+
+def load_model():
+    global lstm_model
+    lstm_model = tf.keras.models.load_model('productMatcher.h5')
+    lstm_model.summary()
 
 
 def levenshtein_bulk_matcher(reference_products: list[Product],
@@ -506,6 +551,21 @@ def soft_tfidf_bulk_matcher(reference_products: list[Product],
         matches.append(tuple((
             invoice,
             __soft_tfidf_matcher(reference_products, invoice, threshold, single_best)
+        )))
+
+    return matches
+
+
+def lstm_bulk_matcher(reference_products: list[Product],
+                      invoices: list,
+                      threshold: float,
+                      single_best: bool = False):
+    matches = []
+
+    for invoice in invoices:
+        matches.append(tuple((
+            invoice,
+            __lstm_matcher(reference_products, invoice, threshold, single_best)
         )))
 
     return matches

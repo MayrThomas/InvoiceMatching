@@ -13,6 +13,7 @@ class Metric(Enum):
     MONGE_ELKAN = 5,
     TFIDF = 6,
     SOFT_TFIDF = 7,
+    LSTM = 8
 
 
 def __print_matches(matches, type: Metric):
@@ -25,6 +26,15 @@ def __print_matches(matches, type: Metric):
     print()
 
 
+def __create_vocabulary(ref: list[Product], inv):
+    vocabulary = []
+    [vocabulary.append(rp.name) for rp in ref]
+    [vocabulary.append(i.name) for i in inv]
+
+    with open("vocabulary.json", "w", encoding='utf8') as file:
+        json.dump(vocabulary, file, ensure_ascii=False)
+
+
 x = '{"name": "Avocados 500g", "quantity": null, "unitPrice": null, "totalPrice": {"value": 1.46, "currency": "EUR", ' \
     '"convertedValue": null, "convertedCurrency": null, "convertTime": null}} '
 
@@ -33,31 +43,40 @@ if __name__ == '__main__':
 
     result = read_invoice(x)
     invoices = read_invoices(open_invoice_file())
+
+    # __create_vocabulary(reference_products, invoices)
+
+    load_model()
     test_invoices = invoices[1:10]
 
-    jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, test_invoices, 0.7, False)
+    jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, test_invoices, 0.7, True)
     __print_matches(jaro_winkler_match, Metric.JARO_WINKLER)
     print()
 
-    levenshtein_match = levenshtein_bulk_matcher(reference_products, test_invoices, 10, False)
+    levenshtein_match = levenshtein_bulk_matcher(reference_products, test_invoices, 10, True)
     __print_matches(levenshtein_match, Metric.LEVENSHTEIN)
     print()
 
-    jaro_match = jaro_bulk_matcher(reference_products, test_invoices, 0.7, False)
+    jaro_match = jaro_bulk_matcher(reference_products, test_invoices, 0.7, True)
     __print_matches(jaro_match, Metric.JARO)
     print()
 
-    tfidf_result = tfidf_bulk_matcher(reference_products, test_invoices, 0.4, False)
+    tfidf_result = tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
     __print_matches(tfidf_result, Metric.TFIDF)
     print()
 
-    jaccard_match = jaccard_bulk_matcher(reference_products, test_invoices, 0.7, False)
+    jaccard_match = jaccard_bulk_matcher(reference_products, test_invoices, 0.7, True)
     __print_matches(jaccard_match, Metric.JACCARD)
     print()
 
-    monge_elkan_match = monge_elkan_bulk_matcher(reference_products, test_invoices, 0.7, False)
+    monge_elkan_match = monge_elkan_bulk_matcher(reference_products, test_invoices, 0.7, True)
     __print_matches(monge_elkan_match, Metric.MONGE_ELKAN)
     print()
 
-    soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, test_invoices, 0.4, False)
+    soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
     __print_matches(soft_tfidf_match, Metric.SOFT_TFIDF)
+    print()
+
+    lstm_match = lstm_bulk_matcher(reference_products, test_invoices, 0.7, True)
+    __print_matches(lstm_match, Metric.LSTM)
+    print()
