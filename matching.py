@@ -1,5 +1,3 @@
-import numpy
-
 from product import Product
 import jellyfish
 import math
@@ -82,7 +80,7 @@ def __inverse_document_frequency(token_set: list[str], corpus: list[list[str]]):
     return normalized_inverse_document_freq
 
 
-def __tf_idf(term_frequency: list[float], inverse_document_frequency):
+def __tf_idf(term_frequency: list[float], inverse_document_frequency: list[float]):
     tfidf = []
     for index in range(len(term_frequency)):
         tfidf.append(term_frequency[index] * inverse_document_frequency[index])
@@ -285,8 +283,8 @@ def __soft_tfidf_matcher(reference_products: list[Product],
     # tokenize strings
     invoice_tokens = invoice.name.split()
     product_tokens = [x.name.split() for x in reference_products]
-    corpus = product_tokens.copy()
-    corpus.append(invoice_tokens.copy())
+    corpus = [product_tokens.copy()]
+    corpus.extend(invoice_tokens.copy())
 
     # tf = number of times a token appears in the document/string
     # idf = weight of words across the whole corpus  (log(number of documents / number of documents containing token)
@@ -345,7 +343,6 @@ def __lstm_matcher(reference_products: list[Product],
                    invoice,
                    threshold: float,
                    single_best: bool = False):
-
     invoice_sequence = tokenizer.texts_to_sequences([invoice.name])
     invoice_sequence = pad_sequences(invoice_sequence, maxlen=MAX_SEQUENCE_LENGTH)
 
@@ -355,7 +352,7 @@ def __lstm_matcher(reference_products: list[Product],
 
     # expand list to exact size of reference products
     invoice_sequence = invoice_sequence[:len(product_sequences)] \
-        + [invoice_sequence[0]] * (len(product_sequences)+1 - len(invoice_sequence))
+                       + [invoice_sequence[0]] * (len(product_sequences) + 1 - len(invoice_sequence))
 
     predictions = list(lstm_model.predict([invoice_sequence, product_sequences]).ravel())
 
@@ -569,3 +566,78 @@ def lstm_bulk_matcher(reference_products: list[Product],
         )))
 
     return matches
+
+
+def test_matchers(test_data):
+    matching_scores = []
+
+    for index, data in enumerate(test_data):
+        invoice_tokens = data.invoice.split()
+        product_tokens = data.product.split()
+
+        scores = [jellyfish.levenshtein_distance(data.invoice, data.product),
+                  jellyfish.jaro_similarity(data.invoice, data.product),
+                  jellyfish.jaro_winkler_similarity(data.invoice, data.product),
+                  float(len(set(invoice_tokens).intersection(product_tokens)))/len(set(invoice_tokens).union(product_tokens))]
+
+        # monge-elkan score
+
+        sum_token_similarity = 0
+        for token in invoice_tokens:
+            sum_token_similarity += __monge_elkan_token_similarity(token, product_tokens)
+
+        scores.append((1/len(invoice_tokens)) * sum_token_similarity)
+
+        # tf-idf score
+
+        documents = [data.invoice]
+        documents.extend([x.product for x in test_data])
+        # calculate tf-idf score as in __tf_idf_matcher
+        tfidf_vectorizer = TfidfVectorizer()
+        tfidf_matrix = tfidf_vectorizer.fit_transform(documents)
+        all_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix)
+        scores.append(all_similarities.ravel()[index+1])
+
+        # soft-tf-idf score
+
+        corpus = [data.invoice.split()]
+        corpus.extend([x.product.split() for x in test_data])
+
+        invoice_similarity_tokens = []
+        product_similarity_tokens = []
+        jw_similarities = []
+
+        for invoice_token in invoice_tokens:
+            sim = 0.0
+            token = ""
+            for product_token in product_tokens:
+                jw_sim = jellyfish.jaro_winkler_similarity(invoice_token, product_token)
+
+                if jw_sim > sim and jw_sim >= 0.45:
+                    sim = jw_sim
+                    token = product_token
+
+            if sim > 0.0:
+                invoice_similarity_tokens.append(invoice_token)
+                product_similarity_tokens.append(token)
+                jw_similarities.append(sim)
+
+        invoice_frequencies = __term_frequency(invoice_similarity_tokens, invoice_tokens)
+        product_frequencies = __term_frequency(product_similarity_tokens, product_tokens)
+
+        invoice_idf = __inverse_document_frequency(invoice_similarity_tokens, corpus)
+        product_idf = __inverse_document_frequency(product_similarity_tokens, corpus)
+
+        invoice_tf_idf = __tf_idf(invoice_frequencies, invoice_idf)
+        product_tf_idf = __tf_idf(product_frequencies, product_idf)
+
+        # calculate similarity
+        soft_tfidf_sim = 0.0
+        for idx in range(len(invoice_tf_idf)):
+            soft_tfidf_sim += invoice_tf_idf[idx] * product_tf_idf[idx] * jw_similarities[idx]
+
+        scores.append(soft_tfidf_sim)
+
+        matching_scores.append(scores)
+
+    return matching_scores

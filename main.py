@@ -1,8 +1,12 @@
 # imports
 from enum import Enum
+
+import pandas
+
 from input import *
 from reference import *
 from matching import *
+import pandas as pd
 
 
 class Metric(Enum):
@@ -21,7 +25,13 @@ def __print_matches(matches, type: Metric):
         print("{} match for {}:".format(type.name, match[0].name))
         print("---------------------------------------------")
         for product in match[1]:
-            print("product: {}; similarity: {}".format(product[0].name, product[1]))
+            print("product: {}; similarity: {}; should be: {}; {}".format(
+                product[0].name,
+                product[1],
+                match[0].retailerProductName,
+                product[0].name == match[0].retailerProductName
+                )
+            )
         print()
     print()
 
@@ -35,48 +45,50 @@ def __create_vocabulary(ref: list[Product], inv):
         json.dump(vocabulary, file, ensure_ascii=False)
 
 
-x = '{"name": "Avocados 500g", "quantity": null, "unitPrice": null, "totalPrice": {"value": 1.46, "currency": "EUR", ' \
-    '"convertedValue": null, "convertedCurrency": null, "convertTime": null}} '
-
 if __name__ == '__main__':
     reference_products = prepare_reference_data()
 
-    result = read_invoice(x)
     invoices = read_invoices(open_invoice_file())
 
     # __create_vocabulary(reference_products, invoices)
 
-    load_model()
-    test_invoices = invoices[1:10]
+    # load_model()
 
-    jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, test_invoices, 0.7, True)
-    __print_matches(jaro_winkler_match, Metric.JARO_WINKLER)
-    print()
+    # jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, invoices, 0.7, True)
+    # __print_matches(jaro_winkler_match, Metric.JARO_WINKLER)
+    # print()
 
-    levenshtein_match = levenshtein_bulk_matcher(reference_products, test_invoices, 10, True)
-    __print_matches(levenshtein_match, Metric.LEVENSHTEIN)
-    print()
+    # levenshtein_match = levenshtein_bulk_matcher(reference_products, invoices, 10, True)
+    # __print_matches(levenshtein_match, Metric.LEVENSHTEIN)
+    # print()
 
-    jaro_match = jaro_bulk_matcher(reference_products, test_invoices, 0.7, True)
-    __print_matches(jaro_match, Metric.JARO)
-    print()
+    # jaro_match = jaro_bulk_matcher(reference_products, invoices, 0.7, True)
+    # __print_matches(jaro_match, Metric.JARO)
+    # print()
 
-    tfidf_result = tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
-    __print_matches(tfidf_result, Metric.TFIDF)
-    print()
+    # tfidf_result = tfidf_bulk_matcher(reference_products, invoices, 0.4, True)
+    # __print_matches(tfidf_result, Metric.TFIDF)
+    # print()
 
-    jaccard_match = jaccard_bulk_matcher(reference_products, test_invoices, 0.7, True)
-    __print_matches(jaccard_match, Metric.JACCARD)
-    print()
+    # jaccard_match = jaccard_bulk_matcher(reference_products, invoices, 0.4, True)
+    # __print_matches(jaccard_match, Metric.JACCARD)
+    # print()
 
-    monge_elkan_match = monge_elkan_bulk_matcher(reference_products, test_invoices, 0.7, True)
-    __print_matches(monge_elkan_match, Metric.MONGE_ELKAN)
-    print()
+    # monge_elkan_match = monge_elkan_bulk_matcher(reference_products, invoices, 0.7, True)
+    # __print_matches(monge_elkan_match, Metric.MONGE_ELKAN)<
+    # print()
 
-    soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, test_invoices, 0.4, True)
-    __print_matches(soft_tfidf_match, Metric.SOFT_TFIDF)
-    print()
+    # soft_tfidf_match = soft_tfidf_bulk_matcher(reference_products, invoices, 0.4, True)
+    # __print_matches(soft_tfidf_match, Metric.SOFT_TFIDF)
+    # print()
 
-    lstm_match = lstm_bulk_matcher(reference_products, test_invoices, 0.7, True)
-    __print_matches(lstm_match, Metric.LSTM)
-    print()
+    # lstm_match = lstm_bulk_matcher(reference_products, invoices, 0.7, False)
+    # __print_matches(lstm_match, Metric.LSTM)
+    # print()
+
+    fileData = open("stringTestData.json", "r", encoding="utf-8")
+    test_data = json.load(fileData, object_hook=lambda d: SimpleNamespace(**d))
+    matching_results = test_matchers(test_data)
+
+    for result in matching_results:
+        print(result)
