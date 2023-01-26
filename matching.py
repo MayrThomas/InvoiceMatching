@@ -578,7 +578,8 @@ def test_matchers(test_data):
         scores = [jellyfish.levenshtein_distance(data.invoice, data.product),
                   jellyfish.jaro_similarity(data.invoice, data.product),
                   jellyfish.jaro_winkler_similarity(data.invoice, data.product),
-                  float(len(set(invoice_tokens).intersection(product_tokens)))/len(set(invoice_tokens).union(product_tokens))]
+                  float(len(set(invoice_tokens).intersection(product_tokens))) / len(
+                      set(invoice_tokens).union(product_tokens))]
 
         # monge-elkan score
 
@@ -586,7 +587,7 @@ def test_matchers(test_data):
         for token in invoice_tokens:
             sum_token_similarity += __monge_elkan_token_similarity(token, product_tokens)
 
-        scores.append((1/len(invoice_tokens)) * sum_token_similarity)
+        scores.append((1 / len(invoice_tokens)) * sum_token_similarity)
 
         # tf-idf score
 
@@ -596,7 +597,7 @@ def test_matchers(test_data):
         tfidf_vectorizer = TfidfVectorizer()
         tfidf_matrix = tfidf_vectorizer.fit_transform(documents)
         all_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix)
-        scores.append(all_similarities.ravel()[index+1])
+        scores.append(all_similarities.ravel()[index + 1])
 
         # soft-tf-idf score
 
@@ -641,3 +642,18 @@ def test_matchers(test_data):
         matching_scores.append(scores)
 
     return matching_scores
+
+
+def test_model(test_data):
+    input_invoices = [x.invoice for x in test_data]
+    input_products = [x.product for x in test_data]
+
+    input_invoices = tokenizer.texts_to_sequences(input_invoices)
+    input_products = tokenizer.texts_to_sequences(input_products)
+
+    input_invoices = pad_sequences(input_invoices, maxlen=MAX_SEQUENCE_LENGTH)
+    input_products = pad_sequences(input_products, maxlen=MAX_SEQUENCE_LENGTH)
+
+    predictions = list(lstm_model.predict([input_invoices, input_products]).ravel())
+
+    return predictions

@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     # __create_vocabulary(reference_products, invoices)
 
-    # load_model()
+    load_model()
 
     # jaro_winkler_match = jaro_winkler_bulk_matcher(reference_products, invoices, 0.7, True)
     # __print_matches(jaro_winkler_match, Metric.JARO_WINKLER)
@@ -82,13 +82,18 @@ if __name__ == '__main__':
     # __print_matches(soft_tfidf_match, Metric.SOFT_TFIDF)
     # print()
 
-    # lstm_match = lstm_bulk_matcher(reference_products, invoices, 0.7, False)
-    # __print_matches(lstm_match, Metric.LSTM)
-    # print()
+    lstm_match = lstm_bulk_matcher(reference_products, invoices, 0.7, False)
+    __print_matches(lstm_match, Metric.LSTM)
+    print()
 
-    fileData = open("stringTestData.json", "r", encoding="utf-8")
-    test_data = json.load(fileData, object_hook=lambda d: SimpleNamespace(**d))
-    matching_results = test_matchers(test_data)
+    # fileData = open("stringTestData.json", "r", encoding="utf-8")
+    # test_data = json.load(fileData, object_hook=lambda d: SimpleNamespace(**d))
+    # matching_results = test_matchers(test_data)
+    #
+    # for result in matching_results:
+    #     print(result)
 
-    for result in matching_results:
-        print(result)
+    # model_results = test_model(test_data)
+    # for index, result in enumerate(model_results):
+    #     # print("prediction: {} ; should be {}".format(result, test_data[index].similar, ))
+    #     print(result)
